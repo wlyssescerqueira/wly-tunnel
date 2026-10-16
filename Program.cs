@@ -17,7 +17,7 @@ static class Program
 
 record Settings(string Host, string User, string SshPort, string Key, string LocalPort, string RemoteHost, string RemotePort);
 
-sealed class TunnelForm : Form
+sealed partial class TunnelForm : Form
 {
     readonly TextBox host = new() { Text = "167.99.1.163" };
     readonly TextBox user = new() { Text = "root" };
@@ -35,53 +35,71 @@ sealed class TunnelForm : Form
     readonly string settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WlyTunnel", "settings.json");
     Process? tunnel;
     bool busy;
+    bool exiting;
+    readonly NotifyIcon tray = new();
+    readonly ToolStripMenuItem trayConnect = new("Conectar");
+    readonly ToolStripMenuItem trayDisconnect = new("Desconectar");
 
     public TunnelForm()
     {
-        Text = "WLY Tunnel — conexão SSH";
-        Size = new Size(760, 730);
-        MinimumSize = new Size(660, 650);
-        StartPosition = FormStartPosition.CenterScreen;
-        Font = new Font("Segoe UI", 10);
-        AutoScaleMode = AutoScaleMode.Dpi;
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20), ColumnCount = 2, RowCount = 14 };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 175));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        Controls.Add(layout);
-        void Wide(Control control, int row) { layout.Controls.Add(control, 0, row); layout.SetColumnSpan(control, 2); }
-        Wide(new Label { Text = "Túnel para o banco de dados", Font = new Font(Font, FontStyle.Bold), AutoSize = true, Margin = new Padding(0, 0, 0, 16) }, 0);
-        var fields = new (string, TextBox)[] { ("Servidor SSH", host), ("Usuário SSH", user), ("Porta SSH", sshPort), ("Arquivo da chave SSH", key), ("Porta local", localPort), ("Destino no servidor", remoteHost), ("Porta de destino", remotePort) };
-        for (int i = 0; i < fields.Length; i++)
+        BuildInterface(out var copy);
+        var menu = new ContextMenuStrip();
+        menu.Items.Add("Abrir WLY Tunnel", null, (_, _) => RestoreWindow());
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(trayConnect);
+        menu.Items.Add(trayDisconnect);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Sair e desconectar", null, (_, _) =>
         {
-            layout.Controls.Add(new Label { Text = fields[i].Item1, AutoSize = true, Anchor = AnchorStyles.Left }, 0, i + 1);
-            fields[i].Item2.Dock = DockStyle.Fill;
-            fields[i].Item2.Margin = new Padding(3, 4, 3, 4);
-            layout.Controls.Add(fields[i].Item2, 1, i + 1);
-        }
-        Wide(status, 8);
-        Wide(usage, 9);
-        var buttons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 10, 0, 10) };
-        var copy = new Button { Text = "Copiar endereço local", AutoSize = true };
-        buttons.Controls.AddRange([connect, disconnect, copy]);
-        Wide(buttons, 10);
-        Wide(new Label { Text = "Mantenha esta janela aberta enquanto usa o banco. Fechar desconecta o túnel.", AutoSize = true }, 11);
-        Wide(log, 12);
-        layout.RowStyles.Clear();
-        for (int i = 0; i < 12; i++) layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            if (busy) { RestoreWindow(); WriteLog("Aguarde a tentativa de conexão terminar antes de sair."); return; }
+            exiting = true;
+            Close();
+        });
+        tray.Icon = Icon;
+        tray.Text = "WLY Tunnel — desconectado";
+        tray.ContextMenuStrip = menu;
+        tray.Visible = true;
+        tray.DoubleClick += (_, _) => RestoreWindow();
+        trayConnect.Click += async (_, _) => await Connect();
+        trayDisconnect.Click += (_, _) => Stop();
+        status.TextChanged += (_, _) => tray.Text = $"WLY Tunnel — {status.Text}";
+        FormClosed += (_, _) => { tray.Visible = false; tray.Dispose(); menu.Dispose(); };
+        SetRunning(false);
         LoadSettings();
-        localPort.TextChanged += (_, _) => UpdateUsage();
+        foreach (var field in new[] { localPort, remoteHost, remotePort }) field.TextChanged += (_, _) => UpdateUsage();
         UpdateUsage();
         copy.Click += (_, _) => { try { Clipboard.SetText($"127.0.0.1:{localPort.Text.Trim()}"); } catch (Exception ex) { WriteLog(ex.Message); } };
         connect.Click += async (_, _) => await Connect();
         disconnect.Click += (_, _) => Stop();
         timer.Tick += (_, _) => { if (!busy && tunnel is { HasExited: true }) { WriteLog($"SSH encerrado (código {tunnel.ExitCode}). Consulte o diagnóstico acima e conecte novamente."); Release(); } };
         timer.Start();
-        FormClosing += (_, e) => { if (busy) { e.Cancel = true; WriteLog("Aguarde a tentativa de conexão terminar antes de fechar."); return; } timer.Stop(); Stop(); };
+        FormClosing += (_, e) =>
+        {
+            if (!exiting && e.CloseReason is CloseReason.UserClosing or CloseReason.TaskManagerClosing)
+            {
+                e.Cancel = true;
+                Hide();
+                tray.ShowBalloonTip(3000, "WLY Tunnel está na bandeja", "O túnel continua no estado atual. Dê dois cliques no ícone para abrir ou use o botão direito para sair.", ToolTipIcon.Info);
+                return;
+            }
+            timer.Stop();
+            Stop();
+        };
         WriteLog("Pronto. Os dados ficam salvos neste usuário do Windows. A chave é usada pelo OpenSSH; seu conteúdo não é copiado.");
     }
 
-    void UpdateUsage() => usage.Text = $"Nos aplicativos: host 127.0.0.1 • porta {localPort.Text} • mantenha usuário, senha e banco existentes.";
+    void RestoreWindow()
+    {
+        Show();
+        WindowState = FormWindowState.Normal;
+        Activate();
+    }
+
+    void UpdateUsage()
+    {
+        endpoint.Text = $"127.0.0.1:{localPort.Text}  →  {remoteHost.Text}:{remotePort.Text}";
+        usage.Text = "Use o endereço local nos aplicativos. Mantenha usuário, senha e nome do banco existentes.";
+    }
     void WriteLog(string message)
     {
         if (IsDisposed || Disposing) return;
@@ -93,6 +111,8 @@ sealed class TunnelForm : Form
         foreach (var field in new[] { host, user, sshPort, key, localPort, remoteHost, remotePort }) field.Enabled = !running;
         connect.Enabled = !running;
         disconnect.Enabled = running && !busy;
+        trayConnect.Enabled = connect.Enabled;
+        trayDisconnect.Enabled = disconnect.Enabled;
     }
     async Task Connect()
     {
@@ -109,7 +129,7 @@ sealed class TunnelForm : Form
             busy = true;
             SetRunning(true);
             status.Text = "Conectando…";
-            status.ForeColor = Color.DarkOrange;
+            status.ForeColor = Color.FromArgb(255, 202, 100);
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
             File.WriteAllText(settingsPath, JsonSerializer.Serialize(new Settings(host.Text.Trim(), user.Text.Trim(), sp.ToString(), key.Text.Trim(), lp.ToString(), remoteHost.Text.Trim(), rp.ToString()), new JsonSerializerOptions { WriteIndented = true }));
             var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "OpenSSH", "ssh.exe")) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true };
@@ -137,8 +157,8 @@ sealed class TunnelForm : Form
                 await Task.Delay(200);
             }
             if (!ready) throw new Exception("Não foi possível confirmar o PostgreSQL no destino. Confira o diagnóstico SSH. Para servidor novo, faça a primeira conexão pelo terminal e confirme a identidade do servidor.");
-            status.Text = $"Conectado • PostgreSQL acessível • PID {tunnel.Id}";
-            status.ForeColor = Color.DarkGreen;
+            status.Text = "Conectado ao PostgreSQL";
+            status.ForeColor = Accent;
             WriteLog($"Túnel confirmado: 127.0.0.1:{lp} → {remoteHost.Text}:{rp} no servidor.");
         }
         catch (Exception ex) { WriteLog(ex.Message); Stop(); }
@@ -156,7 +176,7 @@ sealed class TunnelForm : Form
     void Release()
     {
         tunnel?.Dispose(); tunnel = null;
-        status.Text = "Desconectado"; status.ForeColor = Color.DarkRed; SetRunning(false);
+        status.Text = "Desconectado"; status.ForeColor = Muted; SetRunning(false);
     }
     void LoadSettings()
     {

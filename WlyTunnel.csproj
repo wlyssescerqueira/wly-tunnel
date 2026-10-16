@@ -6,5 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>WlyTunnel</AssemblyName>
+    <ApplicationIcon>Assets\tunnel.ico</ApplicationIcon>
   </PropertyGroup>
 </Project>

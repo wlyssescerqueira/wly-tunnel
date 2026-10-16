@@ -9,9 +9,12 @@ correspondem ao túnel já utilizado neste computador. É necessário ter a chav
 e o servidor previamente reconhecido pelo OpenSSH do Windows. Chaves com senha
 precisam estar carregadas no ssh-agent, pois o app não solicita senhas.
 
-**Desconectar** e fechar a janela encerram somente o processo SSH criado pelo app.
-Uma porta ocupada por outro processo gera um aviso. Não há início automático,
-bandeja oculta nem reconexão automática. Para retomar após uma queda, clique em Conectar.
+O **X** envia a janela para a bandeja perto do relógio, mantendo o túnel no estado atual.
+Dê dois cliques no ícone para reabrir. O botão direito oferece Abrir, Conectar,
+Desconectar e **Sair e desconectar**. Essa última opção encerra o app e seu túnel.
+**Desconectar** encerra somente o processo SSH criado pelo app.
+Uma porta ocupada por outro processo gera um aviso. Não há início automático
+nem reconexão automática. Para retomar após uma queda, clique em Conectar.
 O status conectado exige resposta PostgreSQL no destino, sem autenticar ou alterar dados.
 
 As configurações são salvas em `%LOCALAPPDATA%/WlyTunnel/settings.json`.
