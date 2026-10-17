@@ -19,15 +19,15 @@ sealed partial class TunnelForm
         Text = "WLY Tunnel";
         Font = new Font("Segoe UI", 10);
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new Size(900, 830);
-        MinimumSize = new Size(820, 830);
+        ClientSize = new Size(900, 910);
+        MinimumSize = new Size(820, 880);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Background;
         ForeColor = Color.FromArgb(235, 242, 250);
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6, Padding = new Padding(28, 20, 28, 16) };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        foreach (int height in new[] { 80, 148, 304, 40 }) root.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+        foreach (int height in new[] { 80, 148, 394, 40 }) root.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         Controls.Add(root);
@@ -62,20 +62,23 @@ sealed partial class TunnelForm
         root.Controls.Add(connection, 0, 1);
 
         var config = new CardPanel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 14) };
-        var configGrid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 4, Padding = new Padding(18, 12, 18, 12) };
+        var configGrid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 5, Padding = new Padding(18, 12, 18, 12) };
         foreach (int unused in Enumerable.Range(0, 3)) configGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 3));
         configGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        configGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
         for (int i = 0; i < 3; i++) configGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100f / 3));
         var title = TextLabel("Configuração do túnel", 12, FontStyle.Bold, Point.Empty);
         configGrid.Controls.Add(title, 0, 0); configGrid.SetColumnSpan(title, 3);
-        configGrid.Controls.Add(Field("Servidor SSH", host), 0, 1);
-        configGrid.Controls.Add(Field("Usuário SSH", user), 1, 1);
-        configGrid.Controls.Add(Field("Porta SSH", sshPort), 2, 1);
+        var profileField = ProfileSelector();
+        configGrid.Controls.Add(profileField, 0, 1); configGrid.SetColumnSpan(profileField, 3);
+        configGrid.Controls.Add(Field("Servidor SSH", host), 0, 2);
+        configGrid.Controls.Add(Field("Usuário SSH", user), 1, 2);
+        configGrid.Controls.Add(Field("Porta SSH", sshPort), 2, 2);
         var keyField = Field("Chave privada SSH", key);
-        configGrid.Controls.Add(keyField, 0, 2); configGrid.SetColumnSpan(keyField, 3);
-        configGrid.Controls.Add(Field("Porta neste computador", localPort), 0, 3);
-        configGrid.Controls.Add(Field("Destino no servidor", remoteHost), 1, 3);
-        configGrid.Controls.Add(Field("Porta de destino", remotePort), 2, 3);
+        configGrid.Controls.Add(keyField, 0, 3); configGrid.SetColumnSpan(keyField, 3);
+        configGrid.Controls.Add(Field("Porta neste computador", localPort), 0, 4);
+        configGrid.Controls.Add(Field("Destino no servidor", remoteHost), 1, 4);
+        configGrid.Controls.Add(Field("Porta de destino", remotePort), 2, 4);
         configGrid.BackColor = Surface;
         config.Controls.Add(configGrid);
         root.Controls.Add(config, 0, 2);
@@ -97,6 +100,30 @@ sealed partial class TunnelForm
         root.Controls.Add(diagnostic, 0, 4);
         root.Controls.Add(new Label { Text = "O X envia para a bandeja e mantém o túnel. Para encerrar, use Sair e desconectar no ícone perto do relógio.", Dock = DockStyle.Fill, TextAlign = ContentAlignment.BottomLeft, ForeColor = Muted, Font = new Font(Font.FontFamily, 9) }, 0, 5);
         HandleCreated += (_, _) => { int dark = 1; DwmSetWindowAttribute(Handle, 20, ref dark, sizeof(int)); };
+    }
+
+    Control ProfileSelector()
+    {
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, Margin = new Padding(0, 3, 12, 5) };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.Controls.Add(new Label { Text = "Tipo de acesso", AutoSize = true, ForeColor = Muted, Font = new Font("Segoe UI", 9) }, 0, 0);
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
+        foreach (var button in profileButtons)
+        {
+            button.Appearance = Appearance.Button; button.AutoSize = false; button.Size = new Size(160, 34); button.Cursor = Cursors.Hand;
+            button.FlatStyle = FlatStyle.Flat; button.FlatAppearance.BorderSize = 0; button.TextAlign = ContentAlignment.MiddleCenter;
+            button.Font = new Font("Segoe UI", 10, FontStyle.Bold); button.Margin = new Padding(0, 0, 8, 0);
+            button.FlatAppearance.CheckedBackColor = Accent; button.FlatAppearance.MouseOverBackColor = Color.FromArgb(53, 72, 96);
+            button.BackColor = Color.FromArgb(39, 54, 74);
+            button.CheckedChanged += (_, _) => button.ForeColor = button.Checked ? Background : Color.FromArgb(225, 235, 246);
+            button.ForeColor = Color.FromArgb(225, 235, 246);
+            buttons.Controls.Add(button);
+        }
+        layout.Controls.Add(buttons, 0, 1);
+        profileHint.ForeColor = Muted; profileHint.Font = new Font("Segoe UI", 9); profileHint.Margin = new Padding(0, 4, 0, 0);
+        layout.Controls.Add(profileHint, 0, 2);
+        return layout;
     }
 
     static Label TextLabel(string text, float size, FontStyle style, Point location, Color? color = null) => new() { Text = text, AutoSize = true, Font = new Font("Segoe UI", size, style), Location = location, ForeColor = color ?? Color.FromArgb(235, 242, 250) };

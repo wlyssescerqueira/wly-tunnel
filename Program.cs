@@ -20,14 +20,24 @@ static class Program
     }
 }
 
-record Settings(string Host, string User, string SshPort, string Key, string LocalPort, string RemoteHost, string RemotePort);
+record Settings(string Host, string User, string SshPort, string Key, string LocalPort, string RemoteHost, string RemotePort, string? Profile = null);
+
+record AccessProfile(string Name, string User, string KeyFile, string Description);
 
 sealed partial class TunnelForm : Form
 {
+    static readonly string SshFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
+    static readonly AccessProfile[] Profiles =
+    [
+        new("Administrador", "root", "id_rsa", "Acesso completo ao servidor (usuário root). Use a chave id_rsa do administrador."),
+        new("Desenvolvedor", "devbanco", "id_ed25519_do", "Somente o túnel até o PostgreSQL, sem acesso ao servidor (usuário devbanco). Use a chave id_ed25519_do cadastrada para você."),
+    ];
     readonly TextBox host = new() { Text = "167.99.1.163" };
-    readonly TextBox user = new() { Text = "root" };
+    readonly TextBox user = new();
     readonly TextBox sshPort = new() { Text = "22" };
-    readonly TextBox key = new() { Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh", "id_rsa") };
+    readonly TextBox key = new();
+    readonly RadioButton[] profileButtons = Profiles.Select(p => new RadioButton { Text = p.Name }).ToArray();
+    readonly Label profileHint = new() { Dock = DockStyle.Fill, AutoSize = false };
     readonly TextBox localPort = new() { Text = "15432" };
     readonly TextBox remoteHost = new() { Text = "127.0.0.1" };
     readonly TextBox remotePort = new() { Text = "15432" };
@@ -69,7 +79,10 @@ sealed partial class TunnelForm : Form
         trayDisconnect.Click += (_, _) => Stop();
         status.TextChanged += (_, _) => tray.Text = $"WLY Tunnel — {status.Text}";
         FormClosed += (_, _) => { tray.Visible = false; tray.Dispose(); menu.Dispose(); };
+        for (int i = 0; i < Profiles.Length; i++) { int index = i; profileButtons[i].Click += (_, _) => ApplyProfile(Profiles[index]); }
+        user.TextChanged += (_, _) => SyncProfile();
         SetRunning(false);
+        ApplyProfile(File.Exists(Path.Combine(SshFolder, "id_ed25519_do")) || !File.Exists(Path.Combine(SshFolder, "id_rsa")) ? Profiles[1] : Profiles[0]);
         LoadSettings();
         foreach (var field in new[] { localPort, remoteHost, remotePort }) field.TextChanged += (_, _) => UpdateUsage();
         UpdateUsage();
@@ -100,6 +113,18 @@ sealed partial class TunnelForm : Form
         Activate();
     }
 
+    void ApplyProfile(AccessProfile profile)
+    {
+        user.Text = profile.User;
+        key.Text = Path.Combine(SshFolder, profile.KeyFile);
+        SyncProfile();
+    }
+    void SyncProfile()
+    {
+        var profile = Profiles.FirstOrDefault(p => p.User == user.Text.Trim());
+        for (int i = 0; i < Profiles.Length; i++) profileButtons[i].Checked = Profiles[i] == profile;
+        profileHint.Text = profile?.Description ?? $"Configuração personalizada: usuário SSH {user.Text.Trim()}.";
+    }
     void UpdateUsage()
     {
         endpoint.Text = $"127.0.0.1:{localPort.Text}  →  {remoteHost.Text}:{remotePort.Text}";
@@ -114,6 +139,7 @@ sealed partial class TunnelForm : Form
     void SetRunning(bool running)
     {
         foreach (var field in new[] { host, user, sshPort, key, localPort, remoteHost, remotePort }) field.Enabled = !running;
+        foreach (var button in profileButtons) button.Enabled = !running;
         connect.Enabled = !running;
         disconnect.Enabled = running && !busy;
         trayConnect.Enabled = connect.Enabled;
@@ -136,11 +162,19 @@ sealed partial class TunnelForm : Form
             status.Text = "Conectando…";
             status.ForeColor = Color.FromArgb(255, 202, 100);
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
-            File.WriteAllText(settingsPath, JsonSerializer.Serialize(new Settings(host.Text.Trim(), user.Text.Trim(), sp.ToString(), key.Text.Trim(), lp.ToString(), remoteHost.Text.Trim(), rp.ToString()), new JsonSerializerOptions { WriteIndented = true }));
+            var profile = Profiles.FirstOrDefault(p => p.User == user.Text.Trim());
+            File.WriteAllText(settingsPath, JsonSerializer.Serialize(new Settings(host.Text.Trim(), user.Text.Trim(), sp.ToString(), key.Text.Trim(), lp.ToString(), remoteHost.Text.Trim(), rp.ToString(), profile?.Name), new JsonSerializerOptions { WriteIndented = true }));
             var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "OpenSSH", "ssh.exe")) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true };
             foreach (var arg in new[] { "-N", "-T", "-L", $"127.0.0.1:{lp}:{remoteHost.Text.Trim()}:{rp}", "-p", sp.ToString(), "-i", key.Text.Trim(), "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ExitOnForwardFailure=yes", "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=3", $"{user.Text.Trim()}@{host.Text.Trim()}" }) start.ArgumentList.Add(arg);
             tunnel = new Process { StartInfo = start };
-            tunnel.ErrorDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) WriteLog(e.Data); };
+            string sshUser = user.Text.Trim();
+            tunnel.ErrorDataReceived += (_, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(e.Data)) return;
+                WriteLog(e.Data);
+                if (e.Data.Contains("Permission denied"))
+                    WriteLog($"O servidor recusou esta chave para o usuário {sshUser}. Confira o Tipo de acesso: desenvolvedores usam devbanco com a chave id_ed25519_do; administradores usam root com a chave id_rsa.");
+            };
             tunnel.OutputDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) WriteLog(e.Data); };
             tunnel.Start();
             tunnel.BeginErrorReadLine(); tunnel.BeginOutputReadLine();
@@ -192,6 +226,7 @@ sealed partial class TunnelForm : Form
             if (s == null) return;
             host.Text = s.Host; user.Text = s.User; sshPort.Text = s.SshPort; key.Text = s.Key;
             localPort.Text = s.LocalPort; remoteHost.Text = s.RemoteHost; remotePort.Text = s.RemotePort;
+            SyncProfile();
         }
         catch (Exception ex) { WriteLog($"Não foi possível carregar configuração: {ex.Message}"); }
     }

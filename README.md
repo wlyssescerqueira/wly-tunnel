@@ -4,6 +4,16 @@ Abra `app/WlyTunnel.exe`, confira os dados e clique em **Conectar**.
 Use `127.0.0.1:15432` no aplicativo que precisa do PostgreSQL.
 O usuário, a senha e o nome do banco continuam sendo os de cada projeto.
 
+Escolha o **Tipo de acesso** antes de conectar. Ele preenche usuário e chave SSH:
+
+| Tipo          | Usuário SSH | Chave                  | Para quem                                              |
+| ------------- | ----------- | ---------------------- | ------------------------------------------------------ |
+| Administrador | `root`      | `~/.ssh/id_rsa`        | Dono do servidor, com acesso completo                  |
+| Desenvolvedor | `devbanco`  | `~/.ssh/id_ed25519_do` | Outro dev: somente o túnel até o PostgreSQL, sem shell |
+
+A chave do desenvolvedor só funciona com `devbanco`. Com `root`, o servidor recusa a
+chave e o app mostra essa orientação no diagnóstico.
+
 A tela mostra todos os parâmetros e o diagnóstico do OpenSSH. Os valores iniciais
 correspondem ao túnel já utilizado neste computador. É necessário ter a chave SSH
 e o servidor previamente reconhecido pelo OpenSSH do Windows. Chaves com senha
