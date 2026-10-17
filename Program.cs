@@ -10,8 +10,13 @@ static class Program
     [STAThread]
     static void Main()
     {
+        using var mutex = new Mutex(true, @"Local\WlyTunnel.SingleInstance", out var first);
+        using var show = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\WlyTunnel.Show");
+        if (!first) { show.Set(); return; }
         ApplicationConfiguration.Initialize();
-        Application.Run(new TunnelForm());
+        var form = new TunnelForm();
+        ThreadPool.RegisterWaitForSingleObject(show, (_, _) => { if (form.IsHandleCreated) form.BeginInvoke(form.RestoreWindow); }, null, Timeout.Infinite, false);
+        Application.Run(form);
     }
 }
 
@@ -88,7 +93,7 @@ sealed partial class TunnelForm : Form
         WriteLog("Pronto. Os dados ficam salvos neste usuário do Windows. A chave é usada pelo OpenSSH; seu conteúdo não é copiado.");
     }
 
-    void RestoreWindow()
+    internal void RestoreWindow()
     {
         Show();
         WindowState = FormWindowState.Normal;
