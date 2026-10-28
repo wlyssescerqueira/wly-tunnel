@@ -1,0 +1,73 @@
+WLY TUNNEL • PRIMEIRA CONFIGURAÇÃO
+Siga a ordem abaixo. Os comandos são executados manualmente no PowerShell; abrir este guia não altera sua configuração.
+
+1. OBTENHA O APLICATIVO E OS DADOS DE ACESSO
+Peça ao responsável pelo projeto o pacote WlyTunnel.zip ou a pasta publicada com WlyTunnel.exe. Extraia o ZIP antes de abrir o executável. Não é necessário instalar o .NET na versão autocontida.
+Peça também: endereço e porta SSH, perfil autorizado, destino e porta do PostgreSQL no servidor, nome do banco, usuário e senha do banco e impressão digital (fingerprint) da chave do servidor.
+O login SSH e o login do banco são diferentes. Ser desenvolvedor não concede automaticamente permissão de leitura ou escrita: isso depende do usuário do PostgreSQL fornecido pelo administrador.
+
+2. CONFIRA O OPENSSH DO WINDOWS
+Abra o PowerShell e execute:
+  ssh -V
+  Get-Command ssh-keygen, ssh-add
+Se não estiverem disponíveis, instale o recurso opcional “Cliente OpenSSH” do Windows. O aplicativo usa C:\Windows\System32\OpenSSH\ssh.exe.
+
+3. ESCOLHA O PERFIL E LOCALIZE OU GERE SUA CHAVE
+Desenvolvedor: usuário SSH devbanco; arquivo padrão id_ed25519_do.
+Administrador: usuário SSH root; arquivo padrão id_rsa; exclusivo de quem tem acesso administrativo autorizado.
+Cada pessoa deve usar sua própria chave. Não peça nem compartilhe a chave privada do administrador. Se já possui a chave correta, não a sobrescreva: avance para o passo 4.
+Para gerar uma chave de desenvolvedor, execute:
+  New-Item -ItemType Directory -Force "$env:USERPROFILE\.ssh"
+  ssh-keygen -t ed25519 -f "$env:USERPROFILE\.ssh\id_ed25519_do" -C "seu-nome-wly-tunnel"
+Se for administrador e precisar de um novo par RSA compatível com o perfil padrão, use:
+  ssh-keygen -t rsa -b 4096 -f "$env:USERPROFILE\.ssh\id_rsa" -C "seu-nome-admin"
+Execute apenas o comando do seu perfil. Se houver pergunta para substituir um arquivo existente, responda não e confira a chave antes de continuar. Escolha uma frase-senha para proteger a chave; o passo 5 explica como usá-la no aplicativo.
+
+4. ENVIE SOMENTE A CHAVE PÚBLICA PARA CADASTRO
+A geração cria dois arquivos:
+• Sem extensão (id_ed25519_do ou id_rsa): chave PRIVADA, fica neste computador e será selecionada no WLY Tunnel.
+• Com .pub: chave PÚBLICA, pode ser enviada ao administrador para autorizar seu acesso.
+Para copiar a chave pública de desenvolvedor:
+  Get-Content "$env:USERPROFILE\.ssh\id_ed25519_do.pub" | Set-Clipboard
+O administrador deve cadastrar a pública no authorized_keys do usuário SSH correto. Para devbanco, deve liberar somente o encaminhamento até o destino necessário, sem shell, e confirmar que o PostgreSQL está acessível por esse destino no servidor. Aguarde essa confirmação antes de conectar.
+Para root, o cadastro deve ser feito por um administrador com acesso já autorizado. Gerar o par de chaves sozinho não libera acesso ao servidor.
+
+5. CARREGUE A CHAVE COM FRASE-SENHA
+O WLY Tunnel não abre uma caixa de senha: usa OpenSSH em BatchMode. Para uma chave protegida, habilite o agente uma vez no PowerShell como administrador:
+  Set-Service -Name ssh-agent -StartupType Automatic
+  Start-Service ssh-agent
+Depois, no PowerShell do seu usuário Windows, carregue a chave e informe a frase-senha:
+  ssh-add "$env:USERPROFILE\.ssh\id_ed25519_do"
+  ssh-add -l
+Para Administrador, substitua id_ed25519_do por id_rsa. Se o agente deixar de listar a chave, carregue-a novamente antes de usar o aplicativo.
+
+6. RECONHEÇA A IDENTIDADE DO SERVIDOR
+Confirme com o administrador o fingerprint recebido por um canal confiável. Para os valores padrão de Desenvolvedor, abra no terminal:
+  ssh -N -T -p 22 -i "$env:USERPROFILE\.ssh\id_ed25519_do" devbanco@167.99.1.163
+Troque endereço, porta, usuário e chave pelos dados recebidos. Para Administrador, use root e id_rsa. Só responda yes quando o fingerprint exibido coincidir com o confirmado pelo responsável.
+Uma conexão sem saída é esperada com -N. Após reconhecer o servidor e autenticar, encerre essa sessão com Ctrl+C. O OpenSSH registra a identidade em .ssh\known_hosts. Não remova uma identidade divergente sem confirmar o motivo com o administrador.
+
+7. PREENCHA O WLY TUNNEL
+Abra WlyTunnel.exe e escolha o Tipo de acesso. Confira todos os campos:
+• Servidor SSH: endereço recebido (padrão do projeto: 167.99.1.163).
+• Usuário SSH: devbanco ou root, conforme a autorização.
+• Porta SSH: normalmente 22.
+• Chave privada SSH: caminho completo do arquivo SEM .pub.
+• Porta neste computador: 15432, ou outra porta local livre.
+• Destino no servidor: 127.0.0.1 e porta 15432 nos valores padrão deste projeto. Esse endereço é visto pelo servidor SSH.
+Os valores padrão são exemplos da configuração do projeto; o administrador deve confirmar os dados do seu acesso.
+
+8. CONECTE E CONFIGURE O CLIENTE DO BANCO
+Clique em Conectar e aguarde “Conectado ao PostgreSQL”. Esse status confirma o encaminhamento até o PostgreSQL; não valida sua senha ou suas permissões no banco.
+No DBeaver, pgAdmin ou outro aplicativo, use host 127.0.0.1 e a porta local escolhida (padrão 15432). Mantenha o nome do banco, usuário e senha PostgreSQL recebidos. Desative o túnel SSH do cliente de banco quando usar o WLY Tunnel, para evitar criar dois túneis.
+
+9. USO DIÁRIO E PROBLEMAS COMUNS
+Abra o WLY Tunnel, carregue a chave no agente se necessário e conecte antes de abrir o banco. O X mantém o aplicativo na bandeja; para encerrar tudo, use “Sair e desconectar” no ícone perto do relógio. Após uma queda, clique em Conectar novamente.
+• Arquivo não encontrado: confira o caminho da chave privada, sem .pub.
+• Permission denied: confira perfil, usuário, chave cadastrada e ssh-add -l.
+• Host key verification failed: faça o passo 6 e confira a identidade.
+• Porta em uso: escolha outra porta local e use a mesma no cliente do banco.
+• PostgreSQL não confirmado: envie o diagnóstico ao administrador para conferir o encaminhamento e o destino no servidor.
+• Túnel conectado, mas login do banco falha: confira as credenciais PostgreSQL com o responsável.
+
+O aplicativo salva os parâmetros em %LOCALAPPDATA%\WlyTunnel\settings.json. Ele não copia o conteúdo da chave privada nem armazena a senha do banco.

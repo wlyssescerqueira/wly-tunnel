@@ -8,4 +8,7 @@
     <AssemblyName>WlyTunnel</AssemblyName>
     <ApplicationIcon>Assets\tunnel.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="PASSO-A-PASSO.txt" />
+  </ItemGroup>
 </Project>

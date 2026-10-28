@@ -35,6 +35,11 @@ sealed partial class TunnelForm
         header.Controls.Add(new PictureBox { Image = Icon?.ToBitmap(), SizeMode = PictureBoxSizeMode.Zoom, Bounds = new Rectangle(0, 4, 48, 48) });
         header.Controls.Add(TextLabel("WLY Tunnel", 24, FontStyle.Bold, new Point(64, 0)));
         header.Controls.Add(TextLabel("Seu banco remoto, ao alcance de uma conexão.", 10, FontStyle.Regular, new Point(66, 45), Muted));
+        var guide = new Button { Text = "Passo a passo", Dock = DockStyle.Right, AccessibleName = "Abrir guia de configuração" };
+        StyleButton(guide, false);
+        guide.Width = 160;
+        guide.Click += (_, _) => ShowSetupGuide();
+        header.Controls.Add(guide);
         root.Controls.Add(header, 0, 0);
 
         var connection = new CardPanel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 16) };
