@@ -1,0 +1,19 @@
+CONFIGURAÇÃO RÁPIDA • ADMINISTRADOR E DESENVOLVEDOR
+
+Qual perfil usar?
+• Administrador: root + chave id_rsa. Acesso completo ao servidor, quando autorizado.
+• Desenvolvedor: devbanco + chave id_ed25519_do. Somente túnel para o PostgreSQL, sem shell.
+
+1. Obtenha o WlyTunnel.zip com o responsável, extraia e confirme os dados SSH e do banco. Tenha o Cliente OpenSSH instalado no Windows.
+
+2. Use sua chave existente ou gere seu próprio par (comandos na aba Completo). Envie somente a chave pública .pub ao administrador para cadastro no usuário correto. A privada fica com você; nunca a compartilhe.
+
+3. Se a chave tiver frase-senha, carregue-a no ssh-agent com ssh-add. O aplicativo não solicita essa senha.
+
+4. Faça a primeira conexão SSH pelo terminal e confira o fingerprint com o administrador antes de aceitar o servidor. Depois encerre essa sessão com Ctrl+C.
+
+5. No WLY Tunnel, escolha seu perfil e confira servidor, porta SSH e caminho da chave PRIVADA (sem .pub). Confirme destino e porta com o responsável.
+
+6. Clique em Conectar. Ao aparecer “Conectado ao PostgreSQL”, use 127.0.0.1 e a porta local escolhida no cliente do banco (padrão 15432), com o usuário, senha e nome do banco recebidos. Desative o SSH do cliente se estiver usando este aplicativo.
+
+O perfil SSH não define as permissões no banco: elas dependem do usuário PostgreSQL. O X mantém o túnel na bandeja; “Sair e desconectar” encerra. Consulte a aba Completo para comandos e solução de problemas.

@@ -3,6 +3,8 @@
 Na interface, clique em **Passo a passo** para consultar o guia completo de primeira
 configuração, com os comandos na ordem de execução. O mesmo conteúdo está em
 [PASSO-A-PASSO.txt](PASSO-A-PASSO.txt) e acompanha o pacote para distribuição.
+O guia abre na aba **Resumido**; a aba **Completo** traz os comandos. Ambas cobrem
+Administrador e Desenvolvedor. O resumo também está em [RESUMO.txt](RESUMO.txt).
 
 Abra `app/WlyTunnel.exe`, confira os dados e clique em **Conectar**.
 Use `127.0.0.1:15432` no aplicativo que precisa do PostgreSQL.

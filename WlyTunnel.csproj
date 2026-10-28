@@ -10,5 +10,6 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="PASSO-A-PASSO.txt" />
+    <EmbeddedResource Include="RESUMO.txt" />
   </ItemGroup>
 </Project>
