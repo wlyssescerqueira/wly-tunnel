@@ -29,7 +29,9 @@ O **X** envia a janela para a bandeja perto do relógio, mantendo o túnel no es
 Dê dois cliques no ícone para reabrir. O botão direito oferece Abrir, Conectar,
 Desconectar e **Sair e desconectar**. Essa última opção encerra o app e seu túnel.
 **Desconectar** encerra somente o processo SSH criado pelo app.
-Uma porta ocupada por outro processo gera um aviso. Não há início automático
+Uma porta ocupada oferece encerrar o processo identificado por nome e PID e reiniciar
+o túnel aqui. Isso só acontece após confirmar **Sim**; **Não** mantém o processo atual.
+Não há início automático
 nem reconexão automática. Para retomar após uma queda, clique em Conectar.
 O status conectado exige resposta PostgreSQL no destino, sem autenticar ou alterar dados.
 

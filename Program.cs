@@ -155,10 +155,9 @@ sealed partial class TunnelForm : Form
             foreach (var field in new[] { host, user, remoteHost })
                 if (string.IsNullOrWhiteSpace(field.Text) || field.Text.Trim().StartsWith('-') || field.Text.Any(char.IsWhiteSpace)) throw new Exception("Preencha servidor, usuário e destino sem espaços.");
             if (!File.Exists(key.Text.Trim())) throw new Exception("Arquivo de chave SSH não encontrado. Informe o caminho completo.");
-            var listener = new TcpListener(IPAddress.Loopback, lp);
-            try { listener.Start(); } catch (SocketException) { throw new Exception($"A porta {lp} já está em uso por outro processo ou túnel. Ele não será encerrado por este app."); } finally { listener.Stop(); }
             busy = true;
             SetRunning(true);
+            if (!await EnsurePortAvailable(lp)) return;
             status.Text = "Conectando…";
             status.ForeColor = Color.FromArgb(255, 202, 100);
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
@@ -203,6 +202,76 @@ sealed partial class TunnelForm : Form
         catch (Exception ex) { WriteLog(ex.Message); Stop(); }
         finally { busy = false; SetRunning(tunnel != null); }
     }
+    static bool PortAvailable(int port)
+    {
+        var listener = new TcpListener(IPAddress.Loopback, port);
+        try { listener.Start(); return true; }
+        catch (SocketException) { return false; }
+        finally { listener.Stop(); }
+    }
+
+    static async Task<int[]> PortOwners(int port)
+    {
+        var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "netstat.exe"))
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true
+        };
+        foreach (var arg in new[] { "-ano", "-p", "tcp" }) start.ArgumentList.Add(arg);
+        using var process = Process.Start(start)!;
+        string output = await process.StandardOutput.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        if (process.ExitCode != 0) throw new Exception("Não foi possível identificar o processo que ocupa a porta.");
+        return output.Split('\n').Select(line => line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            .Where(parts => parts.Length == 5 && parts[0] == "TCP"
+                && (parts[1] == $"127.0.0.1:{port}" || parts[1] == $"0.0.0.0:{port}")
+                && parts[2] == "0.0.0.0:0")
+            .Select(parts => int.Parse(parts[4])).Distinct().ToArray();
+    }
+
+    async Task<bool> EnsurePortAvailable(int port)
+    {
+        if (PortAvailable(port)) return true;
+        var owners = new List<Process>();
+        try
+        {
+            foreach (int pid in await PortOwners(port))
+            {
+                if (pid <= 4 || pid == Environment.ProcessId)
+                    throw new Exception($"A porta {port} está ocupada por um processo que não pode ser encerrado aqui.");
+                var owner = Process.GetProcessById(pid);
+                owners.Add(owner);
+                _ = owner.StartTime; // Confirma acesso à identidade antes de solicitar autorização.
+            }
+            if (PortAvailable(port)) return true;
+            if (owners.Count == 0) throw new Exception($"A porta {port} está indisponível e não foi possível identificar seu processo. Nenhum processo foi encerrado.");
+            RestoreWindow();
+            string names = string.Join(Environment.NewLine, owners.Select(p => $"• {p.ProcessName} (PID {p.Id})"));
+            var answer = MessageBox.Show(this,
+                $"Já existe uma conexão ou processo usando a porta {port}:\n\n{names}\n\nDeseja encerrar e reiniciar o túnel aqui no WLY Tunnel?\n\nIsso interromperá as conexões atendidas por esses processos.",
+                "Encerrar conexão existente e reconectar?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            if (answer != DialogResult.Yes)
+            {
+                WriteLog("Conexão cancelada. O processo existente foi mantido.");
+                return false;
+            }
+            var currentOwners = await PortOwners(port);
+            if (currentOwners.Except(owners.Select(p => p.Id)).Any())
+                throw new Exception("O processo que ocupa a porta mudou. Clique em Conectar novamente para revisar.");
+            foreach (var owner in owners)
+            {
+                if (owner.HasExited || !currentOwners.Contains(owner.Id)) continue;
+                owner.Kill();
+                await owner.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                WriteLog($"Processo {owner.Id} encerrado com sua confirmação. Reiniciando o túnel aqui.");
+            }
+            if (!PortAvailable(port)) throw new Exception($"A porta {port} continua ocupada. Não foi possível reiniciar o túnel.");
+            return true;
+        }
+        finally { foreach (var owner in owners) owner.Dispose(); }
+    }
+
     void Stop()
     {
         if (tunnel != null)

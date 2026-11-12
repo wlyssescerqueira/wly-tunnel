@@ -1,73 +1,188 @@
-WLY TUNNEL • PRIMEIRA CONFIGURAÇÃO
-Siga a ordem abaixo. Os comandos são executados manualmente no PowerShell; abrir este guia não altera sua configuração.
+WLY TUNNEL • PASSO A PASSO COMPLETO
 
-1. OBTENHA O APLICATIVO E OS DADOS DE ACESSO
-Peça ao responsável pelo projeto o pacote WlyTunnel.zip ou a pasta publicada com WlyTunnel.exe. Extraia o ZIP antes de abrir o executável. Não é necessário instalar o .NET na versão autocontida.
-Peça também: endereço e porta SSH, perfil autorizado, destino e porta do PostgreSQL no servidor, nome do banco, usuário e senha do banco e impressão digital (fingerprint) da chave do servidor.
-O login SSH e o login do banco são diferentes. Ser desenvolvedor não concede automaticamente permissão de leitura ou escrita: isso depende do usuário do PostgreSQL fornecido pelo administrador.
+Cada passo diz ONDE fazer, o que DIGITAR, o que VAI APARECER e o que FAZER com o resultado.
+São dois sistemas. Siga na ordem e veja no título de cada bloco onde você está:
+• [WINDOWS] seu computador, onde roda o WLY Tunnel. Comandos no PowerShell.
+• [LINUX] a VPS, onde está o PostgreSQL. Comandos no terminal da VPS, como root.
+Ordem: WINDOWS (passos 1–3) → LINUX (passos 4–7) → WINDOWS (passos 8–11).
+Se você é o administrador e já entra na VPS com "ssh root@167.99.1.163", vá direto ao passo 10 e escolha Administrador.
 
-2. CONFIRA O OPENSSH DO WINDOWS
-Abra o PowerShell e execute:
+
+═══ [WINDOWS] PARTE 1 — SEU COMPUTADOR: CRIAR A CHAVE ═══
+
+1. CONFIRA O SSH DO WINDOWS
+ONDE: Windows → PowerShell (menu Iniciar → digite PowerShell → Enter).
+DIGITE:
   ssh -V
-  Get-Command ssh-keygen, ssh-add
-Se não estiverem disponíveis, instale o recurso opcional “Cliente OpenSSH” do Windows. O aplicativo usa C:\Windows\System32\OpenSSH\ssh.exe.
+VAI APARECER algo como:
+  OpenSSH_for_Windows_9.5p2, LibreSSL 3.8.2
+FAÇA: se apareceu a versão, siga para o passo 2.
+Se apareceu "ssh não é reconhecido", abra o PowerShell como administrador e digite:
+  Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0
+Feche, abra o PowerShell de novo e repita "ssh -V".
 
-3. ESCOLHA O PERFIL E LOCALIZE OU GERE SUA CHAVE
-Desenvolvedor: usuário SSH devbanco; arquivo padrão id_ed25519_do.
-Administrador: usuário SSH root; arquivo padrão id_rsa; exclusivo de quem tem acesso administrativo autorizado.
-Cada pessoa deve usar sua própria chave. Não peça nem compartilhe a chave privada do administrador. Se já possui a chave correta, não a sobrescreva: avance para o passo 4.
-Para gerar uma chave de desenvolvedor, execute:
+2. CRIE SUA CHAVE
+ONDE: Windows → PowerShell.
+DIGITE (troque seu-nome pelo seu nome):
   New-Item -ItemType Directory -Force "$env:USERPROFILE\.ssh"
-  ssh-keygen -t ed25519 -f "$env:USERPROFILE\.ssh\id_ed25519_do" -C "seu-nome-wly-tunnel"
-Se for administrador e precisar de um novo par RSA compatível com o perfil padrão, use:
-  ssh-keygen -t rsa -b 4096 -f "$env:USERPROFILE\.ssh\id_rsa" -C "seu-nome-admin"
-Execute apenas o comando do seu perfil. Se houver pergunta para substituir um arquivo existente, responda não e confira a chave antes de continuar. Escolha uma frase-senha para proteger a chave; o passo 5 explica como usá-la no aplicativo.
+  ssh-keygen -t ed25519 -f "$env:USERPROFILE\.ssh\id_ed25519_do" -C "seu-nome"
+VAI APARECER:
+  Enter passphrase (empty for no passphrase):
+FAÇA: aperte Enter duas vezes (sem frase-senha) ou digite uma frase-senha duas vezes.
+Com frase-senha, você precisará do passo 9.
+DEPOIS VAI APARECER:
+  Your identification has been saved in C:\Users\<você>\.ssh\id_ed25519_do
+  Your public key has been saved in C:\Users\<você>\.ssh\id_ed25519_do.pub
+Isso criou dois arquivos: id_ed25519_do (PRIVADA, nunca envie) e id_ed25519_do.pub (PÚBLICA).
+Se aparecer "already exists. Overwrite (y/n)?", digite n: você já tem a chave; siga para o passo 3.
 
-4. ENVIE SOMENTE A CHAVE PÚBLICA PARA CADASTRO
-A geração cria dois arquivos:
-• Sem extensão (id_ed25519_do ou id_rsa): chave PRIVADA, fica neste computador e será selecionada no WLY Tunnel.
-• Com .pub: chave PÚBLICA, pode ser enviada ao administrador para autorizar seu acesso.
-Para copiar a chave pública de desenvolvedor:
+3. ENVIE A CHAVE PÚBLICA AO ADMINISTRADOR
+ONDE: Windows → PowerShell.
+DIGITE:
   Get-Content "$env:USERPROFILE\.ssh\id_ed25519_do.pub" | Set-Clipboard
-O administrador deve cadastrar a pública no authorized_keys do usuário SSH correto. Para devbanco, deve liberar somente o encaminhamento até o destino necessário, sem shell, e confirmar que o PostgreSQL está acessível por esse destino no servidor. Aguarde essa confirmação antes de conectar.
-Para root, o cadastro deve ser feito por um administrador com acesso já autorizado. Gerar o par de chaves sozinho não libera acesso ao servidor.
+  Get-Content "$env:USERPROFILE\.ssh\id_ed25519_do.pub"
+VAI APARECER uma única linha, assim:
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...muitos caracteres... seu-nome
+FAÇA: a linha já está copiada. Cole e envie ao administrador (WhatsApp, e-mail etc.).
+Envie SOMENTE essa linha que começa com ssh-ed25519. Nunca envie o arquivo sem .pub.
 
-5. CARREGUE A CHAVE COM FRASE-SENHA
-O WLY Tunnel não abre uma caixa de senha: usa OpenSSH em BatchMode. Para uma chave protegida, habilite o agente uma vez no PowerShell como administrador:
+
+═══ [LINUX] PARTE 2 — A VPS: LIBERAR O ACESSO (ADMINISTRADOR) ═══
+
+4. ENTRE NA VPS
+ONDE: Windows → PowerShell do administrador (é daqui que se entra no Linux).
+DIGITE:
+  ssh root@167.99.1.163
+VAI APARECER o prompt do Linux:
+  root@...:~#
+FAÇA: a partir daqui você está no LINUX. Os passos 5 a 7 são digitados nesse prompt.
+Os comandos do Linux não funcionam no PowerShell, e vice-versa.
+
+5. CADASTRE A CHAVE DO DESENVOLVEDOR
+ONDE: Linux → VPS (prompt root@...:~#).
+DIGITE (cole entre as aspas simples a linha recebida no passo 3):
+  echo 'ssh-ed25519 AAAAC3Nza...  seu-nome' >> /home/devbanco/.ssh/authorized_keys
+  tail -n 1 /home/devbanco/.ssh/authorized_keys
+VAI APARECER a mesma linha que você colou.
+FAÇA: confira que começa com ssh-ed25519 e termina com o nome do desenvolvedor.
+Use >> (dois sinais). Um sinal só (>) apaga as chaves já cadastradas.
+O usuário devbanco só consegue abrir o túnel até 127.0.0.1:15432: não tem shell nem senha.
+(Servidor novo, sem o usuário devbanco? Veja o ANEXO no final.)
+
+6. PEGUE A IMPRESSÃO DIGITAL (FINGERPRINT) DO SERVIDOR
+ONDE: Linux → VPS.
+DIGITE:
+  ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+VAI APARECER algo como:
+  256 SHA256:+yXYWWw/1PHyuXoDgECgn8uktx9gaWw03o56DDsyGMs root@... (ED25519)
+FAÇA: copie o valor que começa com SHA256: (até antes do espaço).
+
+7. CONFIRA O BANCO E ENVIE OS DADOS AO DESENVOLVEDOR
+ONDE: Linux → VPS.
+DIGITE:
+  ss -ltn | grep 15432
+VAI APARECER:
+  LISTEN 0 4096 127.0.0.1:15432 0.0.0.0:*
+FAÇA: se apareceu, o banco está pronto para o túnel. Se não apareceu nada, o container
+pg-tunnel está parado: suba-o antes de continuar.
+Envie ao desenvolvedor, em uma mensagem:
+  • Fingerprint: o valor SHA256:... do passo 6
+  • Servidor: 167.99.1.163 · Porta SSH: 22 · Usuário SSH: devbanco
+  • Banco: nome do banco, usuário e senha do PostgreSQL dele
+Saia da VPS digitando: exit (você volta ao PowerShell do Windows).
+
+
+═══ [WINDOWS] PARTE 3 — SEU COMPUTADOR: CONECTAR ═══
+
+8. FAÇA A PRIMEIRA CONEXÃO (UMA VEZ SÓ)
+ONDE: Windows → PowerShell.
+DIGITE:
+  ssh -N -i "$env:USERPROFILE\.ssh\id_ed25519_do" devbanco@167.99.1.163
+VAI APARECER:
+  The authenticity of host '167.99.1.163' can't be established.
+  ED25519 key fingerprint is SHA256:+yXYWWw/1PHyuXoDgECgn8uktx9gaWw03o56DDsyGMs.
+  Are you sure you want to continue connecting (yes/no/[fingerprint])?
+FAÇA: compare o SHA256:... da tela com o que o administrador enviou no passo 7.
+  • Iguais → digite yes e Enter.
+  • Diferentes → digite no e avise o administrador. Não continue.
+Se a chave tiver frase-senha, ela será pedida agora.
+DEPOIS o cursor fica parado, sem mensagem nenhuma. Isso é o SUCESSO.
+Aperte Ctrl+C para encerrar. Esse passo não precisa ser repetido.
+Se aparecer "Permission denied (publickey)": o administrador ainda não fez o passo 5,
+ou a linha cadastrada não é a do seu .pub. Reenvie o passo 3.
+
+9. SÓ SE SUA CHAVE TEM FRASE-SENHA
+O WLY Tunnel não pede a frase-senha. Deixe a chave carregada no agente do Windows.
+ONDE: Windows → PowerShell como administrador (uma vez só):
   Set-Service -Name ssh-agent -StartupType Automatic
   Start-Service ssh-agent
-Depois, no PowerShell do seu usuário Windows, carregue a chave e informe a frase-senha:
+ONDE: Windows → PowerShell normal:
   ssh-add "$env:USERPROFILE\.ssh\id_ed25519_do"
-  ssh-add -l
-Para Administrador, substitua id_ed25519_do por id_rsa. Se o agente deixar de listar a chave, carregue-a novamente antes de usar o aplicativo.
+VAI APARECER: Enter passphrase for ... → digite a frase-senha.
+DEPOIS VAI APARECER:
+  Identity added: C:\Users\<você>\.ssh\id_ed25519_do (seu-nome)
+Para conferir: ssh-add -l (mostra a chave carregada).
 
-6. RECONHEÇA A IDENTIDADE DO SERVIDOR
-Confirme com o administrador o fingerprint recebido por um canal confiável. Para os valores padrão de Desenvolvedor, abra no terminal:
-  ssh -N -T -p 22 -i "$env:USERPROFILE\.ssh\id_ed25519_do" devbanco@167.99.1.163
-Troque endereço, porta, usuário e chave pelos dados recebidos. Para Administrador, use root e id_rsa. Só responda yes quando o fingerprint exibido coincidir com o confirmado pelo responsável.
-Uma conexão sem saída é esperada com -N. Após reconhecer o servidor e autenticar, encerre essa sessão com Ctrl+C. O OpenSSH registra a identidade em .ssh\known_hosts. Não remova uma identidade divergente sem confirmar o motivo com o administrador.
+10. CONECTE PELO WLY TUNNEL
+ONDE: Windows → WlyTunnel.exe.
+FAÇA: em Tipo de acesso, marque Desenvolvedor (administrador: Administrador).
+Os campos vão aparecer preenchidos. Confira:
+  • Servidor SSH: 167.99.1.163 · Porta SSH: 22
+  • Usuário SSH: devbanco (administrador: root)
+  • Chave privada SSH: C:\Users\<você>\.ssh\id_ed25519_do (administrador: id_rsa), SEM .pub
+  • Porta neste computador: 15432 · Destino no servidor: 127.0.0.1 e 15432
+Clique em Conectar.
+VAI APARECER no status: Conectado ao PostgreSQL
+Se aparecer erro, leia a mensagem na área de diagnóstico e veja "Problemas comuns".
 
-7. PREENCHA O WLY TUNNEL
-Abra WlyTunnel.exe e escolha o Tipo de acesso. Confira todos os campos:
-• Servidor SSH: endereço recebido (padrão do projeto: 167.99.1.163).
-• Usuário SSH: devbanco ou root, conforme a autorização.
-• Porta SSH: normalmente 22.
-• Chave privada SSH: caminho completo do arquivo SEM .pub.
-• Porta neste computador: 15432, ou outra porta local livre.
-• Destino no servidor: 127.0.0.1 e porta 15432 nos valores padrão deste projeto. Esse endereço é visto pelo servidor SSH.
-Os valores padrão são exemplos da configuração do projeto; o administrador deve confirmar os dados do seu acesso.
+11. ABRA O BANCO NO DBEAVER (OU PGADMIN)
+ONDE: Windows → DBeaver → Nova conexão → PostgreSQL.
+DIGITE:
+  • Host: 127.0.0.1 · Porta: 15432
+  • Banco, Usuário e Senha: os recebidos no passo 7
+  • Aba SSH: deixe DESMARCADA (o túnel já é o WLY Tunnel)
+Clique em Testar conexão.
+VAI APARECER: Connected
+Pronto. No dia a dia: abra o WLY Tunnel, clique em Conectar e depois abra o DBeaver.
 
-8. CONECTE E CONFIGURE O CLIENTE DO BANCO
-Clique em Conectar e aguarde “Conectado ao PostgreSQL”. Esse status confirma o encaminhamento até o PostgreSQL; não valida sua senha ou suas permissões no banco.
-No DBeaver, pgAdmin ou outro aplicativo, use host 127.0.0.1 e a porta local escolhida (padrão 15432). Mantenha o nome do banco, usuário e senha PostgreSQL recebidos. Desative o túnel SSH do cliente de banco quando usar o WLY Tunnel, para evitar criar dois túneis.
 
-9. USO DIÁRIO E PROBLEMAS COMUNS
-Abra o WLY Tunnel, carregue a chave no agente se necessário e conecte antes de abrir o banco. O X mantém o aplicativo na bandeja; para encerrar tudo, use “Sair e desconectar” no ícone perto do relógio. Após uma queda, clique em Conectar novamente.
-• Arquivo não encontrado: confira o caminho da chave privada, sem .pub.
-• Permission denied: confira perfil, usuário, chave cadastrada e ssh-add -l.
-• Host key verification failed: faça o passo 6 e confira a identidade.
-• Porta em uso: escolha outra porta local e use a mesma no cliente do banco.
-• PostgreSQL não confirmado: envie o diagnóstico ao administrador para conferir o encaminhamento e o destino no servidor.
-• Túnel conectado, mas login do banco falha: confira as credenciais PostgreSQL com o responsável.
+═══ PROBLEMAS COMUNS ═══
+• "Arquivo de chave SSH não encontrado": o campo Chave deve apontar para o arquivo SEM .pub.
+• "Permission denied" / servidor recusou a chave: confira o Tipo de acesso (devbanco com
+  id_ed25519_do; root com id_rsa) e se o administrador fez o passo 5. Com frase-senha: passo 9.
+• "Host key verification failed": refaça o passo 8.
+• Porta 15432 em uso: o app oferece encerrar o processo que a ocupa, ou troque a porta
+  neste computador (ex.: 25432) e use a mesma no DBeaver.
+• Túnel conectado, mas o DBeaver recusa usuário/senha: confira os dados do banco com o administrador.
+• X fecha para a bandeja e mantém o túnel. Para encerrar tudo: ícone perto do relógio →
+  Sair e desconectar.
+O app salva os campos em %LOCALAPPDATA%\WlyTunnel\settings.json. Não guarda a chave nem a senha do banco.
 
-O aplicativo salva os parâmetros em %LOCALAPPDATA%\WlyTunnel\settings.json. Ele não copia o conteúdo da chave privada nem armazena a senha do banco.
+
+═══ [LINUX] ANEXO — SERVIDOR NOVO, SEM O USUÁRIO devbanco (ADMINISTRADOR, UMA VEZ SÓ) ═══
+ONDE: Linux → VPS, como root.
+DIGITE:
+  adduser --disabled-password --gecos "" devbanco
+  install -d -m 700 -o devbanco -g devbanco /home/devbanco/.ssh
+  install -m 600 -o devbanco -g devbanco /dev/null /home/devbanco/.ssh/authorized_keys
+  nano /etc/ssh/sshd_config.d/90-devbanco.conf
+VAI APARECER o editor vazio. Cole o bloco abaixo, salve com Ctrl+O, Enter e saia com Ctrl+X:
+  Match User devbanco
+      AuthenticationMethods publickey
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      AllowTcpForwarding local
+      PermitOpen 127.0.0.1:15432
+      AllowStreamLocalForwarding no
+      AllowAgentForwarding no
+      X11Forwarding no
+      PermitTTY no
+      PermitTunnel no
+      MaxSessions 0
+  Match all
+DEPOIS DIGITE:
+  sshd -t && systemctl reload ssh
+VAI APARECER: nada (sem mensagem = sem erro).
+FAÇA: mantenha sua sessão root aberta e teste em outra janela "ssh root@<ip>" antes de sair.
+O PostgreSQL precisa estar publicado só em 127.0.0.1:15432 da VPS (container pg-tunnel).
+Depois volte ao passo 5.
