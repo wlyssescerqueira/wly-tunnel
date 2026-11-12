@@ -9,7 +9,8 @@
     <ApplicationIcon>Assets\tunnel.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="PASSO-A-PASSO.txt" />
+    <EmbeddedResource Include="GUIA-WINDOWS.txt" />
+    <EmbeddedResource Include="GUIA-LINUX.txt" />
     <EmbeddedResource Include="RESUMO.txt" />
   </ItemGroup>
 </Project>

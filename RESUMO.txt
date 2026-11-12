@@ -1,9 +1,10 @@
-WLY TUNNEL • RESUMO (detalhes e o que aparece na tela: aba Completo)
+WLY TUNNEL • RESUMO (detalhes e o que aparece na tela: abas Windows e Linux)
 
-Administrador que já entra na VPS com "ssh root@167.99.1.163": pule para o passo 8 e escolha Administrador.
+Administrador que já entra na VPS com "ssh root@000.000.000.000": pule para o passo 8 e escolha Administrador.
 
 [WINDOWS] = seu computador, onde roda o app (PowerShell).  [LINUX] = a VPS (terminal root).
 Ordem: WINDOWS → LINUX → WINDOWS.
+Onde estiver escrito 000.000.000.000, troque pelo endereço IP da sua VPS (o administrador informa).
 
 [WINDOWS] DESENVOLVEDOR — PowerShell do seu computador
 1. Crie sua chave (Enter duas vezes quando pedir passphrase):
@@ -15,19 +16,19 @@ Vai copiar uma linha "ssh-ed25519 AAAA... seu-nome". Envie só ela.
 
 [LINUX] ADMINISTRADOR — na VPS
 3. Entre na VPS (digite no PowerShell do Windows; o prompt muda para root@...:~#):
-  ssh root@167.99.1.163
+  ssh root@000.000.000.000
 Daqui até o passo 6 os comandos são do Linux, digitados nesse prompt.
 4. Cadastre a linha recebida (use >>, nunca >):
   echo 'ssh-ed25519 AAAA... seu-nome' >> /home/devbanco/.ssh/authorized_keys
 5. Pegue o fingerprint do servidor:
   ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 Vai aparecer "256 SHA256:xxxx... (ED25519)". Copie o SHA256:xxxx.
-6. Envie ao desenvolvedor: o SHA256:xxxx, servidor 167.99.1.163, usuário devbanco,
+6. Envie ao desenvolvedor: o SHA256:xxxx, servidor 000.000.000.000, usuário devbanco,
 porta 22 e nome do banco, usuário e senha do PostgreSQL. Saia com: exit
 
 [WINDOWS] DESENVOLVEDOR — de volta ao PowerShell do seu computador
 7. Primeira conexão (uma vez só):
-  ssh -N -i "$env:USERPROFILE\.ssh\id_ed25519_do" devbanco@167.99.1.163
+  ssh -N -i "$env:USERPROFILE\.ssh\id_ed25519_do" devbanco@000.000.000.000
 Vai aparecer "key fingerprint is SHA256:xxxx... continue connecting?".
 Igual ao do passo 6 → digite yes. Diferente → no, e avise o administrador.
 O cursor fica parado sem mensagem = deu certo. Aperte Ctrl+C.

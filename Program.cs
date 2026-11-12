@@ -32,7 +32,7 @@ sealed partial class TunnelForm : Form
         new("Administrador", "root", "id_rsa", "Acesso completo ao servidor (usuário root). Use a chave id_rsa do administrador."),
         new("Desenvolvedor", "devbanco", "id_ed25519_do", "Somente o túnel até o PostgreSQL, sem acesso ao servidor (usuário devbanco). Use a chave id_ed25519_do cadastrada para você."),
     ];
-    readonly TextBox host = new() { Text = "167.99.1.163" };
+    readonly TextBox host = new() { PlaceholderText = "000.000.000.000 (IP da VPS)" };
     readonly TextBox user = new();
     readonly TextBox sshPort = new() { Text = "22" };
     readonly TextBox key = new();

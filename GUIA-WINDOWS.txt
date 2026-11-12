@@ -1,0 +1,116 @@
+WINDOWS • SEU COMPUTADOR (onde roda o WLY Tunnel)
+
+Tudo nesta aba é feito no Windows: PowerShell, WLY Tunnel e DBeaver.
+Cada passo diz ONDE fazer, o que DIGITAR, o que VAI APARECER e o que FAZER.
+Ordem: passos 1–3 aqui → passos 4–7 na aba Linux (administrador) → passos 8–11 aqui.
+Onde estiver escrito 000.000.000.000, troque pelo IP da sua VPS (o administrador informa).
+Administrador que já entra na VPS com "ssh root@000.000.000.000": vá direto ao passo 10 e escolha Administrador.
+
+
+═══ PARTE 1 — CRIAR A CHAVE ═══
+
+1. CONFIRA O SSH DO WINDOWS
+ONDE: Windows → PowerShell (menu Iniciar → digite PowerShell → Enter).
+DIGITE:
+  ssh -V
+VAI APARECER algo como:
+  OpenSSH_for_Windows_9.5p2, LibreSSL 3.8.2
+FAÇA: se apareceu a versão, siga para o passo 2.
+Se apareceu "ssh não é reconhecido", abra o PowerShell como administrador e digite:
+  Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0
+Feche, abra o PowerShell de novo e repita "ssh -V".
+
+2. CRIE SUA CHAVE
+ONDE: Windows → PowerShell.
+DIGITE (troque seu-nome pelo seu nome):
+  New-Item -ItemType Directory -Force "$env:USERPROFILE\.ssh"
+  ssh-keygen -t ed25519 -f "$env:USERPROFILE\.ssh\id_ed25519_do" -C "seu-nome"
+VAI APARECER:
+  Enter passphrase (empty for no passphrase):
+FAÇA: aperte Enter duas vezes (sem frase-senha) ou digite uma frase-senha duas vezes.
+Com frase-senha, você precisará do passo 9.
+DEPOIS VAI APARECER:
+  Your identification has been saved in C:\Users\<você>\.ssh\id_ed25519_do
+  Your public key has been saved in C:\Users\<você>\.ssh\id_ed25519_do.pub
+Isso criou dois arquivos: id_ed25519_do (PRIVADA, nunca envie) e id_ed25519_do.pub (PÚBLICA).
+Se aparecer "already exists. Overwrite (y/n)?", digite n: você já tem a chave; siga para o passo 3.
+
+3. ENVIE A CHAVE PÚBLICA AO ADMINISTRADOR
+ONDE: Windows → PowerShell.
+DIGITE:
+  Get-Content "$env:USERPROFILE\.ssh\id_ed25519_do.pub" | Set-Clipboard
+  Get-Content "$env:USERPROFILE\.ssh\id_ed25519_do.pub"
+VAI APARECER uma única linha, assim:
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...muitos caracteres... seu-nome
+FAÇA: a linha já está copiada. Cole e envie ao administrador (WhatsApp, e-mail etc.).
+Envie SOMENTE essa linha que começa com ssh-ed25519. Nunca envie o arquivo sem .pub.
+
+>>> AGORA: o administrador faz os passos 4 a 7 na aba LINUX (VPS).
+    Aguarde a mensagem dele com o fingerprint e os dados do banco.
+
+
+═══ PARTE 2 — CONECTAR (depois que o administrador liberar) ═══
+
+8. FAÇA A PRIMEIRA CONEXÃO (UMA VEZ SÓ)
+ONDE: Windows → PowerShell.
+DIGITE:
+  ssh -N -i "$env:USERPROFILE\.ssh\id_ed25519_do" devbanco@000.000.000.000
+VAI APARECER:
+  The authenticity of host '000.000.000.000' can't be established.
+  ED25519 key fingerprint is SHA256:Ab12Cd34...(exemplo).
+  Are you sure you want to continue connecting (yes/no/[fingerprint])?
+FAÇA: compare o SHA256:... da tela com o que o administrador enviou no passo 7 (aba Linux).
+  • Iguais → digite yes e Enter.
+  • Diferentes → digite no e avise o administrador. Não continue.
+Se a chave tiver frase-senha, ela será pedida agora.
+DEPOIS o cursor fica parado, sem mensagem nenhuma. Isso é o SUCESSO.
+Aperte Ctrl+C para encerrar. Esse passo não precisa ser repetido.
+Se aparecer "Permission denied (publickey)": o administrador ainda não fez o passo 5 (aba Linux),
+ou a linha cadastrada não é a do seu .pub. Reenvie o passo 3.
+
+9. SÓ SE SUA CHAVE TEM FRASE-SENHA
+O WLY Tunnel não pede a frase-senha. Deixe a chave carregada no agente do Windows.
+ONDE: Windows → PowerShell como administrador (uma vez só):
+  Set-Service -Name ssh-agent -StartupType Automatic
+  Start-Service ssh-agent
+ONDE: Windows → PowerShell normal:
+  ssh-add "$env:USERPROFILE\.ssh\id_ed25519_do"
+VAI APARECER: Enter passphrase for ... → digite a frase-senha.
+DEPOIS VAI APARECER:
+  Identity added: C:\Users\<você>\.ssh\id_ed25519_do (seu-nome)
+Para conferir: ssh-add -l (mostra a chave carregada).
+
+10. CONECTE PELO WLY TUNNEL
+ONDE: Windows → WlyTunnel.exe.
+FAÇA: em Tipo de acesso, marque Desenvolvedor (administrador: Administrador).
+Preencha ou confira os campos:
+  • Servidor SSH: o IP da sua VPS (na primeira vez vem vazio; depois o app lembra) · Porta SSH: 22
+  • Usuário SSH: devbanco (administrador: root)
+  • Chave privada SSH: C:\Users\<você>\.ssh\id_ed25519_do (administrador: id_rsa), SEM .pub
+  • Porta neste computador: 15432 · Destino no servidor: 127.0.0.1 e 15432
+Clique em Conectar.
+VAI APARECER no status: Conectado ao PostgreSQL
+Se aparecer erro, leia a mensagem na área de diagnóstico e veja "Problemas comuns" abaixo.
+
+11. ABRA O BANCO NO DBEAVER (OU PGADMIN)
+ONDE: Windows → DBeaver → Nova conexão → PostgreSQL.
+DIGITE:
+  • Host: 127.0.0.1 · Porta: 15432
+  • Banco, Usuário e Senha: os recebidos no passo 7 (aba Linux)
+  • Aba SSH: deixe DESMARCADA (o túnel já é o WLY Tunnel)
+Clique em Testar conexão.
+VAI APARECER: Connected
+Pronto. No dia a dia: abra o WLY Tunnel, clique em Conectar e depois abra o DBeaver.
+
+
+═══ PROBLEMAS COMUNS ═══
+• "Arquivo de chave SSH não encontrado": o campo Chave deve apontar para o arquivo SEM .pub.
+• "Permission denied" / servidor recusou a chave: confira o Tipo de acesso (devbanco com
+  id_ed25519_do; root com id_rsa) e se o administrador fez o passo 5 (aba Linux). Com frase-senha: passo 9.
+• "Host key verification failed": refaça o passo 8.
+• Porta 15432 em uso: o app oferece encerrar o processo que a ocupa, ou troque a porta
+  neste computador (ex.: 25432) e use a mesma no DBeaver.
+• Túnel conectado, mas o DBeaver recusa usuário/senha: confira os dados do banco com o administrador.
+• X fecha para a bandeja e mantém o túnel. Para encerrar tudo: ícone perto do relógio →
+  Sair e desconectar.
+O app salva os campos em %LOCALAPPDATA%\WlyTunnel\settings.json. Não guarda a chave nem a senha do banco.

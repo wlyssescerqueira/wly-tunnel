@@ -1,0 +1,81 @@
+LINUX • A VPS (onde está o PostgreSQL) — ADMINISTRADOR
+
+Tudo nesta aba é feito na VPS Linux, como root, exceto o passo 4 (entrar nela pelo PowerShell).
+Antes: o desenvolvedor faz os passos 1–3 na aba Windows e envia a chave pública.
+Onde estiver escrito 000.000.000.000, troque pelo IP da sua VPS.
+
+
+═══ LIBERAR O ACESSO DO DESENVOLVEDOR ═══
+
+4. ENTRE NA VPS
+ONDE: Windows → PowerShell do administrador (é daqui que se entra no Linux).
+DIGITE:
+  ssh root@000.000.000.000
+VAI APARECER o prompt do Linux:
+  root@...:~#
+FAÇA: a partir daqui você está no LINUX. Os passos 5 a 7 são digitados nesse prompt.
+Os comandos do Linux não funcionam no PowerShell, e vice-versa.
+
+5. CADASTRE A CHAVE DO DESENVOLVEDOR
+ONDE: Linux → VPS (prompt root@...:~#).
+DIGITE (cole entre as aspas simples a linha que o desenvolvedor enviou no passo 3 da aba Windows):
+  echo 'ssh-ed25519 AAAAC3Nza...  seu-nome' >> /home/devbanco/.ssh/authorized_keys
+  tail -n 1 /home/devbanco/.ssh/authorized_keys
+VAI APARECER a mesma linha que você colou.
+FAÇA: confira que começa com ssh-ed25519 e termina com o nome do desenvolvedor.
+Use >> (dois sinais). Um sinal só (>) apaga as chaves já cadastradas.
+O usuário devbanco só consegue abrir o túnel até 127.0.0.1:15432: não tem shell nem senha.
+(Servidor novo, sem o usuário devbanco? Veja o ANEXO no final.)
+
+6. PEGUE A IMPRESSÃO DIGITAL (FINGERPRINT) DO SERVIDOR
+ONDE: Linux → VPS.
+DIGITE:
+  ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+VAI APARECER algo como:
+  256 SHA256:Ab12Cd34...(exemplo) root@... (ED25519)
+FAÇA: copie o valor que começa com SHA256: (até antes do espaço).
+
+7. CONFIRA O BANCO E ENVIE OS DADOS AO DESENVOLVEDOR
+ONDE: Linux → VPS.
+DIGITE:
+  ss -ltn | grep 15432
+VAI APARECER:
+  LISTEN 0 4096 127.0.0.1:15432 0.0.0.0:*
+FAÇA: se apareceu, o banco está pronto para o túnel. Se não apareceu nada, o container
+pg-tunnel está parado: suba-o antes de continuar.
+Envie ao desenvolvedor, em uma mensagem:
+  • Fingerprint: o valor SHA256:... do passo 6
+  • Servidor: 000.000.000.000 · Porta SSH: 22 · Usuário SSH: devbanco
+  • Banco: nome do banco, usuário e senha do PostgreSQL dele
+Saia da VPS digitando: exit (você volta ao PowerShell do Windows).
+
+>>> AGORA: o desenvolvedor continua no passo 8 da aba WINDOWS.
+
+
+═══ ANEXO — SERVIDOR NOVO, SEM O USUÁRIO devbanco (ADMINISTRADOR, UMA VEZ SÓ) ═══
+ONDE: Linux → VPS, como root.
+DIGITE:
+  adduser --disabled-password --gecos "" devbanco
+  install -d -m 700 -o devbanco -g devbanco /home/devbanco/.ssh
+  install -m 600 -o devbanco -g devbanco /dev/null /home/devbanco/.ssh/authorized_keys
+  nano /etc/ssh/sshd_config.d/90-devbanco.conf
+VAI APARECER o editor vazio. Cole o bloco abaixo, salve com Ctrl+O, Enter e saia com Ctrl+X:
+  Match User devbanco
+      AuthenticationMethods publickey
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      AllowTcpForwarding local
+      PermitOpen 127.0.0.1:15432
+      AllowStreamLocalForwarding no
+      AllowAgentForwarding no
+      X11Forwarding no
+      PermitTTY no
+      PermitTunnel no
+      MaxSessions 0
+  Match all
+DEPOIS DIGITE:
+  sshd -t && systemctl reload ssh
+VAI APARECER: nada (sem mensagem = sem erro).
+FAÇA: mantenha sua sessão root aberta e teste em outra janela "ssh root@000.000.000.000" antes de sair.
+O PostgreSQL precisa estar publicado só em 127.0.0.1:15432 da VPS (container pg-tunnel).
+Depois volte ao passo 5.
